@@ -1,0 +1,24 @@
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+
+# Binaries and build output
+bin/
+dist/
+
+# Coverage
+coverage/
+coverage*.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# OS files
+.DS_Store
