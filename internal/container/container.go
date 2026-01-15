@@ -1,0 +1,84 @@
+package container
+
+import (
+	"errors"
+	"fmt"
+	"reflect"
+)
+
+type Container struct {
+	components   map[reflect.Type]struct{}
+	constructors map[reflect.Type]reflect.Value
+	instances    map[reflect.Type]any
+	creating     map[reflect.Type]bool
+}
+
+func New() *Container {
+	return &Container{
+		components:   make(map[reflect.Type]struct{}),
+		constructors: make(map[reflect.Type]reflect.Value),
+		instances:    make(map[reflect.Type]any),
+		creating:     make(map[reflect.Type]bool),
+	}
+}
+
+func (c *Container) RegisterComponent(componentType reflect.Type) {
+	c.components[componentType] = struct{}{}
+}
+
+func (c *Container) RegisterConstructor(function any) error {
+	val := reflect.ValueOf(function)
+	typ := val.Type()
+
+	if typ.Kind() != reflect.Func {
+		return errors.New("생성자는 함수여야 합니다")
+	}
+
+	if typ.NumOut() != 1 {
+		return errors.New("생성자는 하나의 반환값만 가져야 합니다")
+	}
+
+	outType := typ.Out(0)
+	c.constructors[outType] = val
+	c.components[outType] = struct{}{}
+
+	return nil
+}
+
+func (c *Container) Resolve(componentType reflect.Type) (any, error) {
+	if instance, ok := c.instances[componentType]; ok {
+		return instance, nil
+	}
+
+	if c.creating[componentType] {
+		return nil, fmt.Errorf("순환 의존성 감지: %v", componentType)
+	}
+
+	if _, registered := c.components[componentType]; !registered {
+		return nil, fmt.Errorf("등록되지 않은 컴포넌트 타입입니다: %v", componentType)
+	}
+
+	constructor, hasConstructor := c.constructors[componentType]
+	if !hasConstructor {
+		return nil, fmt.Errorf("등록된 생성자가 없습니다: %v", componentType)
+	}
+
+	c.creating[componentType] = true
+	defer delete(c.creating, componentType)
+
+	numIn := constructor.Type().NumIn()
+	args := make([]reflect.Value, numIn)
+	for i := 0; i < numIn; i++ {
+		paramType := constructor.Type().In(i)
+		paramInstance, err := c.Resolve(paramType)
+		if err != nil {
+			return nil, err
+		}
+		args[i] = reflect.ValueOf(paramInstance)
+	}
+
+	result := constructor.Call(args)[0].Interface()
+	c.instances[componentType] = result
+
+	return result, nil
+}
