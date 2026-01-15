@@ -3,7 +3,7 @@ package handler
 import (
 	"reflect"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 )
 
 type ErrorReturnHandler struct{}
@@ -12,7 +12,7 @@ func (h *ErrorReturnHandler) Supports(returnType reflect.Type) bool {
 	return returnType == reflect.TypeOf((*error)(nil)).Elem()
 }
 
-func (h *ErrorReturnHandler) Handle(value any, ctx spine.Context) error {
+func (h *ErrorReturnHandler) Handle(value any, ctx core.Context) error {
 	err := value.(error)
 	if err == nil {
 		return nil

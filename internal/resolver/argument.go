@@ -3,7 +3,7 @@ package resolver
 import (
 	"reflect"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 )
 
 /*
@@ -18,5 +18,5 @@ type ArgumentResolver interface {
 	Supports(paramType reflect.Type) bool
 
 	// Resolve는 Context를 기반으로 파라미터에 전달될 값을 생성합니다.
-	Resolve(ctx spine.Context, paramType reflect.Type) (any, error)
+	Resolve(ctx core.Context, paramType reflect.Type) (any, error)
 }

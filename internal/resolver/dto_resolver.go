@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 )
 
 type DTOResolver struct{}
 
 func (r *DTOResolver) Supports(paramType reflect.Type) bool {
 	// Context 제외
-	if paramType == reflect.TypeOf((*spine.Context)(nil)).Elem() {
+	if paramType == reflect.TypeOf((*core.Context)(nil)).Elem() {
 		return false
 	}
 	return paramType.Kind() == reflect.Struct
 }
 
-func (r *DTOResolver) Resolve(ctx spine.Context, paramType reflect.Type) (any, error) {
+func (r *DTOResolver) Resolve(ctx core.Context, paramType reflect.Type) (any, error) {
 	// 빈 DTO 생성
 	valuePtr := reflect.New(paramType)
 

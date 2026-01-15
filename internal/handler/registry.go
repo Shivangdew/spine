@@ -3,7 +3,7 @@ package handler
 import (
 	"reflect"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 )
 
 type ReturnHandlerRegistry struct {
@@ -16,7 +16,7 @@ func NewReturnHandlerRegistry(h ...ReturnValueHandler) *ReturnHandlerRegistry {
 	}
 }
 
-func (r *ReturnHandlerRegistry) Handle(values []any, ctx spine.Context) error {
+func (r *ReturnHandlerRegistry) Handle(values []any, ctx core.Context) error {
 	for _, value := range values {
 		if value == nil {
 			continue

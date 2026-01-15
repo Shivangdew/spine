@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 )
 
 type PrimitiveResolver struct{}
@@ -15,7 +15,7 @@ func (r *PrimitiveResolver) Supports(paramType reflect.Type) bool {
 	return paramType.Kind() == reflect.String || paramType.Kind() == reflect.Int
 }
 
-func (r *PrimitiveResolver) Resolve(ctx spine.Context, paramType reflect.Type) (any, error) {
+func (r *PrimitiveResolver) Resolve(ctx core.Context, paramType reflect.Type) (any, error) {
 	paramName := strings.ToLower(paramType.Name())
 
 	// PathParam 우선

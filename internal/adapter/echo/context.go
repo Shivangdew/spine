@@ -1,7 +1,7 @@
 package echo
 
 import (
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 	"github.com/labstack/echo/v4"
 )
 
@@ -10,7 +10,7 @@ type echoContext struct {
 	store map[string]any
 }
 
-func NewContext(c echo.Context) spine.Context {
+func NewContext(c echo.Context) core.Context {
 	return &echoContext{
 		echo:  c,
 		store: make(map[string]any),

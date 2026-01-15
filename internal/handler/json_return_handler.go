@@ -3,7 +3,7 @@ package handler
 import (
 	"reflect"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 )
 
 type JSONReturnHandler struct{}
@@ -17,7 +17,7 @@ func (h *JSONReturnHandler) Supports(returnType reflect.Type) bool {
 	}
 }
 
-func (h *JSONReturnHandler) Handle(value any, ctx spine.Context) error {
+func (h *JSONReturnHandler) Handle(value any, ctx core.Context) error {
 	return ctx.(interface {
 		JSON(int, any) error
 	}).JSON(200, value)

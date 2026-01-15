@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 	"github.com/NARUBROWN/spine/internal/container"
 	"github.com/NARUBROWN/spine/internal/handler"
 	"github.com/NARUBROWN/spine/internal/resolver"
@@ -16,9 +16,11 @@ type Invoker struct {
 	returnRegistry *handler.ReturnHandlerRegistry
 }
 
-func NewInvoker(container *container.Container) *Invoker {
+func NewInvoker(container *container.Container, argRegistry *resolver.Registry, returnRegistry *handler.ReturnHandlerRegistry) *Invoker {
 	return &Invoker{
-		container: container,
+		container:      container,
+		argRegistry:    argRegistry,
+		returnRegistry: returnRegistry,
 	}
 }
 
@@ -26,7 +28,7 @@ func NewInvoker(container *container.Container) *Invoker {
 Invoke는 컨트롤러 타입과 메서드 이름을 받아 해당 메서드를 실행한다.
 현재는 인자가 없는 메서드만 지원한다.
 */
-func (i *Invoker) Invoke(controllerType reflect.Type, methodName string, ctx spine.Context) error {
+func (i *Invoker) Invoke(controllerType reflect.Type, methodName string, ctx core.Context) error {
 	// 컨트롤러 인스턴스 Resolve
 	controller, err := i.container.Resolve(controllerType)
 	if err != nil {

@@ -1,7 +1,7 @@
 package pipeline
 
 import (
-	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/core"
 	"github.com/NARUBROWN/spine/internal/invoker"
 	"github.com/NARUBROWN/spine/internal/router"
 )
@@ -15,7 +15,7 @@ func NewPipeline(invoker *invoker.Invoker) *Pipeline {
 }
 
 // Execute는 HandlerMeta를 실행합니다.
-func (p *Pipeline) Execute(ctx spine.Context, meta router.HandlerMeta) error {
+func (p *Pipeline) Execute(ctx core.Context, meta router.HandlerMeta) error {
 	return p.invoker.Invoke(
 		meta.ControllerType,
 		meta.MethodName,
