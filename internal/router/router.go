@@ -54,28 +54,30 @@ func (r *DefaultRouter) Route(ctx core.Context) (HandlerMeta, error) {
 			continue
 		}
 
-		ok, params := matchPath(route.Path, ctx.Path())
+		ok, params, keys := matchPath(route.Path, ctx.Path())
 		if !ok {
 			continue
 		}
 
 		// path param 주입
 		ctx.Set("spine.params", params)
+		ctx.Set("spine.pathKeys", keys)
 
 		return route.Meta, nil
 	}
 	return HandlerMeta{}, fmt.Errorf("핸들러가 없습니다.")
 }
 
-func matchPath(pattern string, path string) (bool, map[string]string) {
+func matchPath(pattern string, path string) (bool, map[string]string, []string) {
 	patternSegs := splitPath(pattern)
 	pathSegs := splitPath(path)
 
 	if len(patternSegs) != len(pathSegs) {
-		return false, nil
+		return false, nil, nil
 	}
 
 	params := make(map[string]string)
+	keys := make([]string, 0)
 
 	for i := 0; i < len(patternSegs); i++ {
 		p := patternSegs[i]
@@ -85,15 +87,16 @@ func matchPath(pattern string, path string) (bool, map[string]string) {
 			// :id 형태
 			key := p[1:]
 			params[key] = v
+			keys = append(keys, key)
 			continue
 		}
 
 		if p != v {
-			return false, nil
+			return false, nil, nil
 		}
 	}
 
-	return true, params
+	return true, params, keys
 }
 
 func splitPath(path string) []string {

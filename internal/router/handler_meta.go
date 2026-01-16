@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+
+	"github.com/NARUBROWN/spine/internal/resolver"
 )
 
 // HandlerMeta는 실제로 실행할 핸들러에 대한 메타데이터입니다.
@@ -13,6 +15,12 @@ type HandlerMeta struct {
 	ControllerType reflect.Type
 	// 호출할 메서드 이름
 	Method reflect.Method
+}
+
+// 런타임 전용 구조
+type ExecutableHandler struct {
+	Meta          HandlerMeta
+	ParameterMeta []resolver.ParameterMeta
 }
 
 // NewHandlerMeta는 메서드 표현식 (*Controller).Method 를

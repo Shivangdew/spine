@@ -7,8 +7,9 @@ import (
 )
 
 type ParameterMeta struct {
-	Index int
-	Type  reflect.Type
+	Index   int
+	Type    reflect.Type
+	PathKey string
 }
 
 /*

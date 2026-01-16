@@ -18,6 +18,8 @@ type Context interface {
 	// 요청 범위 데이터 조회
 	Get(key string) (any, bool)
 
+	PathKeys() []string
+
 	Params() map[string]string
 	Queries() map[string][]string
 

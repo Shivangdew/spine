@@ -16,16 +16,26 @@ func (r *PathBooleanResolver) Supports(parameterMeta ParameterMeta) bool {
 }
 
 func (r *PathBooleanResolver) Resolve(ctx core.Context, parameterMeta ParameterMeta) (any, error) {
-	raw, ok := ctx.Params()[parameterMeta.Type.Name()]
+	if parameterMeta.PathKey == "" {
+		return nil, fmt.Errorf(
+			"path key가 바인딩되지 않았습니다: %v",
+			parameterMeta.Type,
+		)
+	}
+
+	raw, ok := ctx.Params()[parameterMeta.PathKey]
 	if !ok {
-		return nil, fmt.Errorf("Path param을 찾을 수 없습니다. %s", parameterMeta.Type.Name())
+		return nil, fmt.Errorf(
+			"path param을 찾을 수 없습니다: %s",
+			parameterMeta.PathKey,
+		)
 	}
 
 	value, err := parseBool(raw)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"유효하지 않은 Path param입니다. %s: %v",
-			parameterMeta.Type.Name(),
+			"유효하지 않은 path param입니다: %s (%v)",
+			parameterMeta.PathKey,
 			err,
 		)
 	}

@@ -16,9 +16,13 @@ func (r *PathIntResolver) Supports(parameterMeta ParameterMeta) bool {
 }
 
 func (r *PathIntResolver) Resolve(ctx core.Context, parameterMeta ParameterMeta) (any, error) {
-	raw, ok := ctx.Params()[parameterMeta.Type.Name()]
+
+	if parameterMeta.PathKey == "" {
+		return nil, fmt.Errorf("%v에 해당하는 path key가 매칭되지 않았습니다.", parameterMeta.Type)
+	}
+	raw, ok := ctx.Params()[parameterMeta.PathKey]
 	if !ok {
-		return nil, fmt.Errorf("path param을 찾을 수 없습니다. %s", parameterMeta.Type.Name())
+		return nil, fmt.Errorf("path param을 찾을 수 없습니다. %s", parameterMeta.PathKey)
 	}
 
 	value, err := strconv.ParseInt(raw, 10, 64)

@@ -94,3 +94,12 @@ func (e *echoContext) Method() string {
 func (e *echoContext) Path() string {
 	return e.echo.Request().URL.Path
 }
+
+func (c *echoContext) PathKeys() []string {
+	if v, ok := c.store["spine.pathKeys"]; ok {
+		if keys, ok := v.([]string); ok {
+			return keys
+		}
+	}
+	return nil
+}

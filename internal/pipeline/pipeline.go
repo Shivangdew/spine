@@ -9,6 +9,7 @@ import (
 	"github.com/NARUBROWN/spine/internal/invoker"
 	"github.com/NARUBROWN/spine/internal/resolver"
 	"github.com/NARUBROWN/spine/internal/router"
+	"github.com/NARUBROWN/spine/pkg/path"
 )
 
 type Pipeline struct {
@@ -38,12 +39,15 @@ func (p *Pipeline) AddReturnValueHandler(handlers ...handler.ReturnValueHandler)
 func (p *Pipeline) Execute(ctx core.Context) error {
 	// Router가 실행 대상을 결정
 	meta, err := p.router.Route(ctx)
+
 	if err != nil {
 		return err
 	}
 
+	paramMetas := buildParameterMeta(meta.Method, ctx)
+
 	// Argument Resolver 체인 실행
-	args, err := p.resolveArguments(ctx, meta)
+	args, err := p.resolveArguments(ctx, meta, paramMetas)
 	if err != nil {
 		return err
 	}
@@ -68,6 +72,41 @@ func (p *Pipeline) Execute(ctx core.Context) error {
 	// TODO: Interceptor postHandle (역순)
 
 	return nil
+}
+
+func buildParameterMeta(method reflect.Method, ctx core.Context) []resolver.ParameterMeta {
+
+	pathKeys := ctx.PathKeys() // ["id"]
+
+	pathIdx := 0
+	var metas []resolver.ParameterMeta
+
+	for i := 1; i < method.Type.NumIn(); i++ {
+		pt := method.Type.In(i)
+
+		pm := resolver.ParameterMeta{
+			Index: i - 1,
+			Type:  pt,
+		}
+
+		if isPathType(pt) {
+			if pathIdx >= len(pathKeys) {
+				pm.PathKey = ""
+			} else {
+				pm.PathKey = pathKeys[pathIdx]
+			}
+			pathIdx++
+		}
+
+		metas = append(metas, pm)
+	}
+
+	return metas
+}
+
+func isPathType(pt reflect.Type) bool {
+	pathPkg := reflect.TypeOf(path.Int{}).PkgPath()
+	return pt.PkgPath() == pathPkg
 }
 
 func (p *Pipeline) handleReturn(ctx core.Context, meta router.HandlerMeta, results []any) error {
@@ -102,21 +141,10 @@ func (p *Pipeline) handleReturn(ctx core.Context, meta router.HandlerMeta, resul
 	return nil
 }
 
-func (p *Pipeline) resolveArguments(ctx core.Context, meta router.HandlerMeta) ([]any, error) {
-	methodType := meta.Method.Type
-	paramCount := methodType.NumIn()
+func (p *Pipeline) resolveArguments(ctx core.Context, meta router.HandlerMeta, paramMetas []resolver.ParameterMeta) ([]any, error) {
+	args := make([]any, 0, len(paramMetas))
 
-	args := make([]any, 0, paramCount-1)
-
-	// 0번째는 receiver (*Controller)
-	for i := 1; i < paramCount; i++ {
-		paramType := methodType.In(i)
-
-		paramMeta := resolver.ParameterMeta{
-			Index: i - 1,
-			Type:  paramType,
-		}
-
+	for _, paramMeta := range paramMetas {
 		resolved := false
 
 		for _, r := range p.argumentResolvers {
@@ -137,8 +165,8 @@ func (p *Pipeline) resolveArguments(ctx core.Context, meta router.HandlerMeta) (
 		if !resolved {
 			return nil, fmt.Errorf(
 				"ArgumentResolver에 parameter가 없습니다. %d (%s)",
-				i-1,
-				paramType.String(),
+				paramMeta.Index,
+				paramMeta.Type.String(),
 			)
 		}
 	}
