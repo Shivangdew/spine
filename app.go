@@ -13,14 +13,17 @@ type App interface {
 	Route(method string, path string, handler any)
 	// 인터셉터 선언
 	Interceptor(interceptors ...core.Interceptor)
+	// HTTP Transport 확장 (Echo 등)
+	Transport(fn func(any))
 	// 실행
 	Run(address string) error
 }
 
 type app struct {
-	constructors []any
-	routes       []router.RouteSpec
-	interceptors []core.Interceptor
+	constructors   []any
+	routes         []router.RouteSpec
+	interceptors   []core.Interceptor
+	transportHooks []func(any)
 }
 
 func New() App {
@@ -45,9 +48,14 @@ func (a *app) Interceptor(interceptors ...core.Interceptor) {
 
 func (a *app) Run(address string) error {
 	return bootstrap.Run(bootstrap.Config{
-		Address:      address,
-		Constructors: a.constructors,
-		Routes:       a.routes,
-		Interceptors: a.interceptors,
+		Address:        address,
+		Constructors:   a.constructors,
+		Routes:         a.routes,
+		Interceptors:   a.interceptors,
+		TransportHooks: a.transportHooks,
 	})
+}
+
+func (a *app) Transport(fn func(any)) {
+	a.transportHooks = append(a.transportHooks, fn)
 }

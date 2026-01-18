@@ -16,10 +16,11 @@ import (
 )
 
 type Config struct {
-	Address      string
-	Constructors []any
-	Routes       []spineRouter.RouteSpec
-	Interceptors []core.Interceptor
+	Address        string
+	Constructors   []any
+	Routes         []spineRouter.RouteSpec
+	Interceptors   []core.Interceptor
+	TransportHooks []func(any)
 }
 
 func Run(config Config) error {
@@ -111,7 +112,7 @@ func Run(config Config) error {
 
 	log.Println("[Bootstrap] HTTP 어댑터 마운트")
 	// Echo Adapter
-	server := httpEngine.NewServer(pipeline, config.Address)
+	server := httpEngine.NewServer(pipeline, config.Address, config.TransportHooks)
 	server.Mount()
 
 	log.Printf("[Bootstrap] 서버 리스닝 시작: %s", config.Address)
