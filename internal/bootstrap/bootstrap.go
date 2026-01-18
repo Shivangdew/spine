@@ -113,5 +113,5 @@ ____/ /__  /_/ /  / _  / / /  __/
 
 func printBanner() {
 	fmt.Print(spineBanner)
-	log.Printf("[Bootstrap] Spine version: %s", "v0.1.4")
+	log.Printf("[Bootstrap] Spine version: %s", "v0.1.5")
 }
