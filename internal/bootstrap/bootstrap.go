@@ -3,7 +3,9 @@ package bootstrap
 import (
 	"fmt"
 	"log"
+	"reflect"
 
+	"github.com/NARUBROWN/spine/core"
 	httpEngine "github.com/NARUBROWN/spine/internal/adapter/echo"
 	"github.com/NARUBROWN/spine/internal/container"
 	"github.com/NARUBROWN/spine/internal/handler"
@@ -17,6 +19,7 @@ type Config struct {
 	Address      string
 	Constructors []any
 	Routes       []spineRouter.RouteSpec
+	Interceptors []core.Interceptor
 }
 
 func Run(config Config) error {
@@ -58,6 +61,7 @@ func Run(config Config) error {
 	invoker := invoker.NewInvoker(container)
 	pipeline := pipeline.NewPipeline(router, invoker)
 
+	log.Println("[Bootstrap] ArgumentResolver 등록")
 	pipeline.AddArgumentResolver(
 		// Context 리졸버
 		&resolver.ContextResolver{},
@@ -75,11 +79,18 @@ func Run(config Config) error {
 		&resolver.DTOResolver{},
 	)
 
+	log.Println("[Bootstrap] ReturnValueHandler 등록")
 	pipeline.AddReturnValueHandler(
 		&handler.StringReturnHandler{},
 		&handler.JSONReturnHandler{},
 		&handler.ErrorReturnHandler{},
 	)
+
+	log.Println("[Bootstrap] Interceptor 등록 시작")
+	for _, interceptor := range config.Interceptors {
+		log.Printf("[Bootstrap] Interceptor %s 등록", reflect.TypeOf(interceptor).Elem().Name())
+	}
+	pipeline.AddInterceptor(config.Interceptors...)
 
 	log.Println("[Bootstrap] HTTP 어댑터 마운트")
 	// Echo Adapter

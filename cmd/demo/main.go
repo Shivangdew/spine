@@ -1,6 +1,9 @@
 package main
 
-import "github.com/NARUBROWN/spine"
+import (
+	"github.com/NARUBROWN/spine"
+	"github.com/NARUBROWN/spine/interceptor/cors"
+)
 
 func main() {
 	app := spine.New()
@@ -27,6 +30,15 @@ func main() {
 		"GET",
 		"/users",
 		(*UserController).GetUserQuery,
+	)
+
+	app.Interceptor(
+		cors.New(cors.Config{
+			AllowOrigins: []string{"*"},
+			AllowMethods: []string{"GET", "POST", "OPTIONS"},
+			AllowHeaders: []string{"Content-Type"},
+		}),
+		&LoggingInterceptor{},
 	)
 
 	app.Run(":8080")
