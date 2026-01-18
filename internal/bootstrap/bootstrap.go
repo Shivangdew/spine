@@ -63,8 +63,8 @@ func Run(config Config) error {
 
 	log.Println("[Bootstrap] ArgumentResolver 등록")
 	pipeline.AddArgumentResolver(
-		// Context 리졸버
-		&resolver.ContextResolver{},
+		// 표준 Context 리졸버
+		&resolver.StdContextResolver{},
 
 		// Path 리졸버들
 		&resolver.PathIntResolver{},
