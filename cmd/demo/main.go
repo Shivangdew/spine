@@ -15,6 +15,7 @@ func main() {
 	// 생성자 등록
 	app.Constructor(
 		NewUserController,
+		NewOrderConsumer,
 	)
 
 	// 라우트 등록, 라우터 단위 인터셉터
@@ -43,6 +44,12 @@ func main() {
 		(*UserController).Upload,
 	)
 
+	app.Route(
+		"POST",
+		"/orders/:orderId",
+		(*UserController).CreateOrder,
+	)
+
 	app.Interceptor(
 		cors.New(cors.Config{
 			AllowOrigins: []string{"*"},
@@ -51,10 +58,24 @@ func main() {
 		}),
 	)
 
+	app.Consumers().Register(
+		"order.created",
+		(*OrderConsumer).OnCreated,
+	)
+
 	// EnableGracefulShutdown & ShutdownTimeout은 선택사항입니다.
 	app.Run(boot.Options{
 		Address:                ":8080",
 		EnableGracefulShutdown: true,
 		ShutdownTimeout:        10 * time.Second,
+		Kafka: &boot.KafkaOptions{
+			Brokers: []string{"localhost:9092"},
+			Read: &boot.KafkaReadOptions{
+				GroupID: "spine-demo-consumer",
+			},
+			Write: &boot.KafkaWriteOptions{
+				TopicPrefix: "",
+			},
+		},
 	})
 }
