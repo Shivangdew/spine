@@ -31,3 +31,10 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event publish.DomainEvent)
 		Time:  event.OccurredAt(),
 	})
 }
+
+func (p *KafkaPublisher) Close() error {
+	if p.Writer == nil {
+		return nil
+	}
+	return p.Writer.Close()
+}

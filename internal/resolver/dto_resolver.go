@@ -32,13 +32,6 @@ func (r *DTOResolver) Supports(pm ParameterMeta) bool {
 		}
 	}
 
-	// query 태그가 있으면 QueryDTO
-	for i := 0; i < elem.NumField(); i++ {
-		if elem.Field(i).Tag.Get("query") != "" {
-			return false
-		}
-	}
-
 	return true
 }
 
@@ -48,8 +41,8 @@ func (r *DTOResolver) Resolve(ctx core.ExecutionContext, parameterMeta Parameter
 		return nil, fmt.Errorf("HTTP 요청 컨텍스트가 아닙니다")
 	}
 
-	// 빈 DTO 생성
-	valuePtr := reflect.New(parameterMeta.Type)
+	// 빈 DTO 생성 (*T)
+	valuePtr := reflect.New(parameterMeta.Type.Elem())
 
 	if err := httpCtx.Bind(valuePtr.Interface()); err != nil {
 		return nil, fmt.Errorf(
@@ -59,6 +52,6 @@ func (r *DTOResolver) Resolve(ctx core.ExecutionContext, parameterMeta Parameter
 		)
 	}
 
-	// 포인터가 아니라 값으로 전달
-	return valuePtr.Elem().Interface(), nil
+	// 포인터로 전달
+	return valuePtr.Interface(), nil
 }

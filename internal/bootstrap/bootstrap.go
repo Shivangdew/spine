@@ -67,7 +67,26 @@ func Run(config Config) error {
 		if err != nil {
 			return err
 		}
-		meta.Interceptors = route.Interceptors
+
+		resolved := make([]core.Interceptor, len(route.Interceptors))
+		for i, interceptor := range route.Interceptors {
+			interceptorType := reflect.TypeOf(interceptor)
+			value := reflect.ValueOf(interceptor)
+
+			if interceptorType.Kind() == reflect.Pointer && value.IsNil() {
+				log.Printf("[Bootstrap] Route Interceptor %s가 컨테이너에서 생성됐습니다.", interceptorType.Elem().Name())
+				inst, err := container.Resolve(interceptorType)
+				if err != nil {
+					panic(err)
+				}
+				resolved[i] = inst.(core.Interceptor)
+			} else {
+				log.Printf("[Bootstrap] Route Interceptor %T가 인스턴스에서 사용됩니다.", interceptor)
+				resolved[i] = interceptor
+			}
+		}
+
+		meta.Interceptors = resolved
 		router.Register(route.Method, route.Path, meta)
 	}
 
@@ -118,30 +137,6 @@ func Run(config Config) error {
 
 	log.Println("[Bootstrap] Interceptor 등록 시작")
 
-	// 라우트 레벨 인터셉터 (파이프라인에 등록하지 않음)
-	for i, route := range config.Routes {
-		resolved := make([]core.Interceptor, len(route.Interceptors))
-		for i, interceptor := range route.Interceptors {
-			interceptorType := reflect.TypeOf(interceptor)
-			value := reflect.ValueOf(interceptor)
-
-			if interceptorType.Kind() == reflect.Pointer && value.IsNil() {
-				log.Printf("[Bootstrap] Route Interceptor %s가 컨테이너에서 생성됐습니다.", interceptorType.Elem().Name())
-				inst, err := container.Resolve(interceptorType)
-				if err != nil {
-					panic(err)
-				}
-				resolved[i] = inst.(core.Interceptor)
-			} else {
-				log.Printf("[Bootstrap] Route Interceptor %T가 인스턴스에서 사용됩니다.", interceptor)
-				resolved[i] = interceptor
-			}
-		}
-		config.Routes[i].Interceptors = resolved
-	}
-
-	log.Println("[Bootstrap] 라우트 레벨 Interceptor resolve 완료")
-
 	// Kafka Write 옵션이 존재하면 Write를 Boot에 포함
 	if config.Kafka != nil && config.Kafka.Write != nil {
 		log.Println("[Bootstrap] Event Queue (Kafka) 구성")
@@ -152,6 +147,13 @@ func Run(config Config) error {
 				TopicPrefix: config.Kafka.Write.TopicPrefix,
 			},
 		})
+		if kafkaPublisher != nil {
+			defer func() {
+				if err := kafkaPublisher.Close(); err != nil {
+					log.Printf("[Bootstrap] Kafka publisher close 실패: %v", err)
+				}
+			}()
+		}
 
 		dispatcher := &publish.DefaultEventDispatcher{
 			Publishers: []publish.EventPublisher{
@@ -201,6 +203,13 @@ func Run(config Config) error {
 				RoutingKey: config.RabbitMQ.Write.RoutingKey,
 			},
 		})
+		if rabbitmqWriter != nil {
+			defer func() {
+				if err := rabbitmqWriter.Close(); err != nil {
+					log.Printf("[Bootstrap] RabbitMQ writer close 실패: %v", err)
+				}
+			}()
+		}
 
 		dispatcher := &publish.DefaultEventDispatcher{
 			Publishers: []publish.EventPublisher{
@@ -340,12 +349,6 @@ func buildConsumerPipeline(container *container.Container, registry *consumer.Re
 		&eventResolver.EventBusResolver{},
 		&eventResolver.PayloadResolver{},
 		&eventResolver.DTOResolver{},
-	)
-
-	consumerPipeline.AddReturnValueHandler(
-		&handler.StringReturnHandler{},
-		&handler.JSONReturnHandler{},
-		&handler.ErrorReturnHandler{},
 	)
 
 	return consumerPipeline

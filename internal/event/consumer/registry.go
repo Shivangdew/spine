@@ -34,7 +34,7 @@ func (r *Registry) Register(topic string, target any) {
 	meta, err := router.NewHandlerMeta(target)
 
 	if err != nil {
-		return
+		panic(err)
 	}
 
 	r.mu.Lock()
