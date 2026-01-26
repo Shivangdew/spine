@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 
@@ -103,6 +104,19 @@ func (r *Runtime) Start(ctx context.Context) {
 			}
 		}(registration)
 	}
+}
+
+func (r *Runtime) Validate() error {
+	for _, reg := range r.registry.Registrations() {
+		reader, err := r.factory.Build(reg)
+		if err != nil {
+			return fmt.Errorf("Consumer 초기화 실패 (%s): %w", reg.Topic, err)
+		}
+		if err := reader.Close(); err != nil {
+			return fmt.Errorf("Consumer 종료 실패 (%s): %w", reg.Topic, err)
+		}
+	}
+	return nil
 }
 
 func (r *Runtime) Stop() {

@@ -14,5 +14,12 @@ func NewRunnerFactory(opts boot.RabbitMqOptions) *RunnerFactory {
 }
 
 func (f *RunnerFactory) Build(registration consumer.Registration) (consumer.Reader, error) {
-	return NewRabbitMqReader(f.opts)
+	return NewRabbitMqReader(RabbitMqOptions{
+		URL: f.opts.URL,
+		Read: &RabbitMqReadOptions{
+			Queue:      registration.Topic,
+			Exchange:   f.opts.Read.Exchange,
+			RoutingKey: registration.Topic,
+		},
+	})
 }

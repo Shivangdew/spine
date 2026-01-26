@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/NARUBROWN/spine/pkg/boot"
@@ -11,23 +12,22 @@ import (
 )
 
 type Writer struct {
-	conn       *amqp091.Connection
-	channel    *amqp091.Channel
-	exchange   string
-	routingKey string
+	conn     *amqp091.Connection
+	channel  *amqp091.Channel
+	exchange string
 }
 
-func NewRabbitMqWriter(opts boot.RabbitMqOptions) *Writer {
+func NewRabbitMqWriter(opts boot.RabbitMqOptions) (*Writer, error) {
 
 	conn, err := amqp091.Dial(opts.URL)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("RabbitMQ 연결 실패: %w", err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		_ = conn.Close()
-		return nil
+		return nil, fmt.Errorf("RabbitMQ 채널 생성 실패: %w", err)
 	}
 
 	err = ch.ExchangeDeclare(
@@ -43,17 +43,16 @@ func NewRabbitMqWriter(opts boot.RabbitMqOptions) *Writer {
 	if err != nil {
 		_ = ch.Close()
 		_ = conn.Close()
-		return nil
+		return nil, fmt.Errorf("RabbitMQ Exchange 선언 실패: %w", err)
 	}
 
 	log.Println("[RabbitMQ][Write] 이벤트 발행기 초기화 완료")
 
 	return &Writer{
-		conn:       conn,
-		channel:    ch,
-		exchange:   opts.Write.Exchange,
-		routingKey: opts.Write.RoutingKey,
-	}
+		conn:     conn,
+		channel:  ch,
+		exchange: opts.Write.Exchange,
+	}, nil
 }
 
 func (w *Writer) Publish(ctx context.Context, event publish.DomainEvent) error {
@@ -66,7 +65,7 @@ func (w *Writer) Publish(ctx context.Context, event publish.DomainEvent) error {
 	return w.channel.PublishWithContext(
 		ctx,
 		w.exchange,
-		w.routingKey,
+		event.Name(),
 		false,
 		false,
 		amqp091.Publishing{

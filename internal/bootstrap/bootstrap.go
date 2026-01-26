@@ -96,6 +96,16 @@ func Run(config Config) error {
 		// Warm-up 실패시 panic
 		panic(err)
 	}
+	// Consumer 컨트롤러 Warm-up
+	if config.ConsumerRegistry != nil {
+		var consumerTypes []reflect.Type
+		for _, reg := range config.ConsumerRegistry.Registrations() {
+			consumerTypes = append(consumerTypes, reg.Meta.ControllerType)
+		}
+		if err := container.WarmUp(consumerTypes); err != nil {
+			panic(err)
+		}
+	}
 
 	log.Println("[Bootstrap] 실행 파이프라인 구성")
 	httpInvoker := invoker.NewInvoker(container)
@@ -139,21 +149,22 @@ func Run(config Config) error {
 
 	// Kafka Write 옵션이 존재하면 Write를 Boot에 포함
 	if config.Kafka != nil && config.Kafka.Write != nil {
-		log.Println("[Bootstrap] Event Queue (Kafka) 구성")
+		log.Println("[Bootstrap] Kafka 이벤트 발행 구성")
 
-		kafkaPublisher := kafka.NewKafkaPublisher(&boot.KafkaOptions{
+		kafkaPublisher, err := kafka.NewKafkaPublisher(&boot.KafkaOptions{
 			Brokers: config.Kafka.Brokers,
 			Write: &boot.KafkaWriteOptions{
 				TopicPrefix: config.Kafka.Write.TopicPrefix,
 			},
 		})
-		if kafkaPublisher != nil {
-			defer func() {
-				if err := kafkaPublisher.Close(); err != nil {
-					log.Printf("[Bootstrap] Kafka publisher close 실패: %v", err)
-				}
-			}()
+		if err != nil {
+			panic(err)
 		}
+		defer func() {
+			if err := kafkaPublisher.Close(); err != nil {
+				log.Printf("[Bootstrap] Kafka publisher close 실패: %v", err)
+			}
+		}()
 
 		dispatcher := &publish.DefaultEventDispatcher{
 			Publishers: []publish.EventPublisher{
@@ -169,9 +180,42 @@ func Run(config Config) error {
 		httpPipeline.AddPostExecutionHook(eventHook)
 	}
 
+	// RabbitMQ 쓰기 설정이 존재하면, 발행 구성
+	if config.RabbitMQ != nil && config.RabbitMQ.Write != nil {
+		log.Println("[Bootstrap] RabbitMQ 이벤트 발행 구성")
+
+		rabbitmqWriter, err := rabbitmq.NewRabbitMqWriter(boot.RabbitMqOptions{
+			URL: config.RabbitMQ.URL,
+			Write: &boot.RabbitMqWriteOptions{
+				Exchange: config.RabbitMQ.Write.Exchange,
+			},
+		})
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			if err := rabbitmqWriter.Close(); err != nil {
+				log.Printf("[Bootstrap] RabbitMQ writer close 실패: %v", err)
+			}
+		}()
+
+		dispatcher := &publish.DefaultEventDispatcher{
+			Publishers: []publish.EventPublisher{
+				rabbitmqWriter,
+			},
+		}
+
+		eventHook := &hook.EventDispatchHook{
+			Extractor:  extract.DefaultEventExtractor{},
+			Dispatcher: dispatcher,
+		}
+
+		httpPipeline.AddPostExecutionHook(eventHook)
+	}
+
 	// Kafka Read 옵션이 존재하면 Read를 Boot에 포함
 	if config.Kafka != nil && config.Kafka.Read != nil && config.ConsumerRegistry != nil && len(config.ConsumerRegistry.Registrations()) > 0 {
-		log.Println("[Bootstrap] 이벤트 컨슈머 런타임을 초기화합니다.")
+		log.Println("[Bootstrap] Kafka 이벤트 컨슈머 구성")
 
 		factory := kafka.NewRunnerFactory(boot.KafkaOptions{
 			Brokers: config.Kafka.Brokers,
@@ -188,41 +232,12 @@ func Run(config Config) error {
 			consumerPipeline,
 		)
 
+		if err := runtime.Validate(); err != nil {
+			panic(err)
+		}
+
 		go runtime.Start(context.Background())
 		defer runtime.Stop()
-	}
-
-	// RabbitMQ 쓰기 설정이 존재하면, 발행 구성
-	if config.RabbitMQ != nil && config.RabbitMQ.Write != nil {
-		log.Println("[Bootstrap] RabbitMQ 이벤트 발행 구성")
-
-		rabbitmqWriter := rabbitmq.NewRabbitMqWriter(boot.RabbitMqOptions{
-			URL: config.RabbitMQ.URL,
-			Write: &boot.RabbitMqWriteOptions{
-				Exchange:   config.RabbitMQ.Write.Exchange,
-				RoutingKey: config.RabbitMQ.Write.RoutingKey,
-			},
-		})
-		if rabbitmqWriter != nil {
-			defer func() {
-				if err := rabbitmqWriter.Close(); err != nil {
-					log.Printf("[Bootstrap] RabbitMQ writer close 실패: %v", err)
-				}
-			}()
-		}
-
-		dispatcher := &publish.DefaultEventDispatcher{
-			Publishers: []publish.EventPublisher{
-				rabbitmqWriter,
-			},
-		}
-
-		eventHook := &hook.EventDispatchHook{
-			Extractor:  extract.DefaultEventExtractor{},
-			Dispatcher: dispatcher,
-		}
-
-		httpPipeline.AddPostExecutionHook(eventHook)
 	}
 
 	// RabbitMQ 읽기 설정이 존재하면, 컨슈머 구성
@@ -232,9 +247,7 @@ func Run(config Config) error {
 		factory := rabbitmq.NewRunnerFactory(boot.RabbitMqOptions{
 			URL: config.RabbitMQ.URL,
 			Read: &boot.RabbitMqReadOptions{
-				Queue:      config.RabbitMQ.Read.Queue,
-				Exchange:   config.RabbitMQ.Read.Exchange,
-				RoutingKey: config.RabbitMQ.Read.RoutingKey,
+				Exchange: config.RabbitMQ.Read.Exchange,
 			},
 		})
 
@@ -245,6 +258,10 @@ func Run(config Config) error {
 			factory,
 			consumerPipeline,
 		)
+
+		if err := runtime.Validate(); err != nil {
+			panic(err)
+		}
 
 		go runtime.Start(context.Background())
 		defer runtime.Stop()
@@ -331,7 +348,7 @@ ____/ /__  /_/ /  / _  / / /  __/
 
 func printBanner() {
 	fmt.Print(spineBanner)
-	log.Printf("[Bootstrap] Spine version: %s", "v0.3.0")
+	log.Printf("[Bootstrap] Spine version: %s", "v0.3.1")
 }
 
 func buildConsumerPipeline(container *container.Container, registry *consumer.Registry) *pipeline.Pipeline {

@@ -29,14 +29,8 @@ RabbitMqReadOptions는 RabbitMQ Consumer(Runtime) 설정입니다.
 Queue 선언 및 Exchange 바인딩 책임을 가집니다.
 */
 type RabbitMqReadOptions struct {
-	// Queue는 메시지를 소비할 큐 이름입니다.
-	Queue string
-
 	// Exchange는 큐가 바인딩될 Exchange 이름입니다.
 	Exchange string
-
-	// RoutingKey는 Exchange에서 큐로 전달될 메시지의 라우팅 키 조건입니다.
-	RoutingKey string
 }
 
 /*
@@ -46,7 +40,4 @@ Exchange 선언 및 메시지 발행 책임을 가집니다.
 type RabbitMqWriteOptions struct {
 	// Exchange는 이벤트를 발행할 대상 Exchange 이름입니다.
 	Exchange string
-
-	// RoutingKey는 이벤트 발행 시 사용할 라우팅 키입니다.
-	RoutingKey string
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -42,62 +43,93 @@ func (c *Container) RegisterConstructor(function any) error {
 }
 
 func (c *Container) Resolve(componentType reflect.Type) (any, error) {
-	c.mu.RLock()
-	// 이미 생성된 인스턴스는 락 없이 반환
-	instance, ok := c.instances[componentType]
-	c.mu.RUnlock()
-	if ok {
+	return c.resolve(componentType, map[reflect.Type]int{}, nil)
+}
+
+func (c *Container) resolve(componentType reflect.Type, stack map[reflect.Type]int, path []reflect.Type) (any, error) {
+	if idx, ok := stack[componentType]; ok {
+		cycle := append([]reflect.Type{}, path[idx:]...)
+		cycle = append(cycle, componentType)
+		return nil, fmt.Errorf("순환 의존성 감지: %s", formatTypePath(cycle))
+	}
+
+	if instance, ok := c.getInstance(componentType); ok {
 		return instance, nil
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Write lock 획득 후에도 이미 생성된 인스턴스가 있으면 그대로 반환
-	if instance, ok := c.instances[componentType]; ok {
-		return instance, nil
+	constructor, err := c.getConstructor(componentType)
+	if err != nil {
+		return nil, err
 	}
 
-	var constructor reflect.Value
-	hasConstructor := false
-
-	// 정확한 타입 일치하는 생성자 우선 탐색
-	if v, ok := c.constructors[componentType]; ok {
-		constructor = v
-		hasConstructor = true
-	}
-
-	// 인터페이스 타입인 경우, 할당 가능한 생성자 탐색
-	if !hasConstructor && componentType.Kind() == reflect.Interface {
-		for outType, v := range c.constructors {
-			if outType.AssignableTo(componentType) {
-				constructor = v
-				hasConstructor = true
-				break
-			}
-		}
-	}
-
-	if !hasConstructor {
-		return nil, fmt.Errorf("등록된 생성자가 없습니다: %v", componentType)
-	}
+	stack[componentType] = len(path)
+	path = append(path, componentType)
+	defer delete(stack, componentType)
 
 	numIn := constructor.Type().NumIn()
 	args := make([]reflect.Value, numIn)
 	for i := 0; i < numIn; i++ {
 		paramType := constructor.Type().In(i)
-		paramInstance, err := c.Resolve(paramType)
+		paramInstance, err := c.resolve(paramType, stack, path)
 		if err != nil {
 			return nil, err
 		}
 		args[i] = reflect.ValueOf(paramInstance)
 	}
 
-	// 생성자 호출하여 인스턴스 생성 후 캐싱
 	result := constructor.Call(args)[0].Interface()
-	c.instances[componentType] = result
+	if cached, existed := c.cacheInstance(componentType, result); existed {
+		return cached, nil
+	}
 
 	return result, nil
+}
+
+func (c *Container) getInstance(componentType reflect.Type) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	instance, ok := c.instances[componentType]
+	return instance, ok
+}
+
+func (c *Container) getConstructor(componentType reflect.Type) (reflect.Value, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// 정확한 타입 일치하는 생성자 우선 탐색
+	if v, ok := c.constructors[componentType]; ok {
+		return v, nil
+	}
+
+	// 인터페이스 타입인 경우, 할당 가능한 생성자 탐색
+	if componentType.Kind() == reflect.Interface {
+		for outType, v := range c.constructors {
+			if outType.AssignableTo(componentType) {
+				return v, nil
+			}
+		}
+	}
+
+	return reflect.Value{}, fmt.Errorf("등록된 생성자가 없습니다: %v", componentType)
+}
+
+func (c *Container) cacheInstance(componentType reflect.Type, instance any) (any, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if existing, ok := c.instances[componentType]; ok {
+		return existing, true
+	}
+	c.instances[componentType] = instance
+	return instance, false
+}
+
+func formatTypePath(path []reflect.Type) string {
+	parts := make([]string, len(path))
+	for i, t := range path {
+		parts[i] = t.String()
+	}
+	return strings.Join(parts, " -> ")
 }
 
 // WarmUp은 지정한 타입 목록에 대해 미리 Resolve를 호출하여 인스턴스를 생성해 둡니다.

@@ -3,6 +3,8 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
 
 	"github.com/NARUBROWN/spine/pkg/boot"
 	"github.com/NARUBROWN/spine/pkg/event/publish"
@@ -13,13 +15,22 @@ type KafkaPublisher struct {
 	Writer *kafka.Writer
 }
 
-func NewKafkaPublisher(opts *boot.KafkaOptions) *KafkaPublisher {
+func NewKafkaPublisher(opts *boot.KafkaOptions) (*KafkaPublisher, error) {
+	if opts == nil {
+		return nil, errors.New("Kafka 옵션이 nil입니다")
+	}
+	if len(opts.Brokers) == 0 {
+		return nil, errors.New("Kafka Brokers가 설정되지 않았습니다")
+	}
+
+	log.Println("[Kafka][Write] 이벤트 발행기 초기화 완료")
+
 	return &KafkaPublisher{
 		Writer: &kafka.Writer{
 			Addr:     kafka.TCP(opts.Brokers...),
 			Balancer: &kafka.LeastBytes{},
 		},
-	}
+	}, nil
 }
 
 func (p *KafkaPublisher) Publish(ctx context.Context, event publish.DomainEvent) error {

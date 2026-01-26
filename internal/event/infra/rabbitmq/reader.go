@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/NARUBROWN/spine/internal/event/consumer"
-	"github.com/NARUBROWN/spine/pkg/boot"
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -15,7 +14,18 @@ type Reader struct {
 	msgs    <-chan amqp091.Delivery
 }
 
-func NewRabbitMqReader(opts boot.RabbitMqOptions) (*Reader, error) {
+type RabbitMqOptions struct {
+	URL  string
+	Read *RabbitMqReadOptions
+}
+
+type RabbitMqReadOptions struct {
+	Queue      string
+	Exchange   string
+	RoutingKey string
+}
+
+func NewRabbitMqReader(opts RabbitMqOptions) (*Reader, error) {
 	if opts.Read == nil {
 		return nil, errors.New("RabbitMQ Read 옵션이 설정되지 않았습니다.")
 	}
