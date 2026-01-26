@@ -116,6 +116,9 @@ func Run(config Config) error {
 		// 표준 Context 리졸버
 		&resolver.StdContextResolver{},
 
+		// Spine Controller Context View
+		&resolver.ControllerContextResolver{},
+
 		// Header Resolver
 		&resolver.HeaderResolver{},
 
@@ -348,7 +351,7 @@ ____/ /__  /_/ /  / _  / / /  __/
 
 func printBanner() {
 	fmt.Print(spineBanner)
-	log.Printf("[Bootstrap] Spine version: %s", "v0.3.1")
+	log.Printf("[Bootstrap] Spine version: %s", "v0.3.2")
 }
 
 func buildConsumerPipeline(container *container.Container, registry *consumer.Registry) *pipeline.Pipeline {

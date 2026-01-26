@@ -45,6 +45,16 @@ type ExecutionContext interface {
 }
 
 /*
+ControllerContext
+- Controller 전용 Context View
+- ExecutionContext의 읽기 전용 Facade
+- Interceptor에서 주입한 값을 Controller에서 참조하기 위한 공식 통로
+*/
+type ControllerContext interface {
+	Get(key string) (any, bool)
+}
+
+/*
 HttpRequestContext
 - HTTP 전용 RequestContext 확장
 */
