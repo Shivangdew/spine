@@ -24,6 +24,10 @@ func (w *EchoResponseWriter) SetHeader(key, value string) {
 	w.ctx.Response().Header().Set(key, value)
 }
 
+func (w *EchoResponseWriter) AddHeader(key, value string) {
+	w.ctx.Response().Header().Add(key, value)
+}
+
 func (w *EchoResponseWriter) WriteStatus(status int) error {
 	w.ctx.Response().WriteHeader(status)
 	return nil

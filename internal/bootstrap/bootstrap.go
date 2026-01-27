@@ -143,6 +143,7 @@ func Run(config Config) error {
 
 	log.Println("[Bootstrap] ReturnValueHandler 등록")
 	httpPipeline.AddReturnValueHandler(
+		&handler.RedirectReturnValueHandler{},
 		&handler.StringReturnHandler{},
 		&handler.JSONReturnHandler{},
 		&handler.ErrorReturnHandler{},
@@ -351,7 +352,7 @@ ____/ /__  /_/ /  / _  / / /  __/
 
 func printBanner() {
 	fmt.Print(spineBanner)
-	log.Printf("[Bootstrap] Spine version: %s", "v0.3.2")
+	log.Printf("[Bootstrap] Spine version: %s", "v0.3.3")
 }
 
 func buildConsumerPipeline(container *container.Container, registry *consumer.Registry) *pipeline.Pipeline {

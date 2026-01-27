@@ -6,6 +6,7 @@ package core
 type ResponseWriter interface {
 	// Header 조작
 	SetHeader(key, value string)
+	AddHeader(key, value string)
 
 	// 상태 코드만 기록 (body 없음)
 	WriteStatus(status int) error

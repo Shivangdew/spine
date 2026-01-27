@@ -9,6 +9,7 @@ import (
 	"github.com/NARUBROWN/spine/pkg/event/publish"
 	"github.com/NARUBROWN/spine/pkg/header"
 	"github.com/NARUBROWN/spine/pkg/httperr"
+	"github.com/NARUBROWN/spine/pkg/httpx"
 	"github.com/NARUBROWN/spine/pkg/multipart"
 	"github.com/NARUBROWN/spine/pkg/path"
 	"github.com/NARUBROWN/spine/pkg/query"
@@ -51,10 +52,13 @@ func (c *UserController) CreateUser(ctx context.Context, req *CreateUserRequest)
 	}
 }
 
-func (c *UserController) GetUserQuery(ctx context.Context, q query.Values) User {
-	return User{
-		ID:   q.Int("id", 0),
-		Name: q.String("name"),
+func (c *UserController) GetUserQuery(ctx context.Context, q query.Values) httpx.Response[string] {
+	// user := User{
+	// 	ID:   q.Int("id", 0),
+	// 	Name: q.String("name"),
+	// }
+	return httpx.Response[string]{
+		Body: "OK",
 	}
 }
 
