@@ -28,12 +28,6 @@ func main() {
 	)
 
 	app.Route(
-		"POST",
-		"/users",
-		(*UserController).CreateUser,
-	)
-
-	app.Route(
 		"GET",
 		"/users",
 		(*UserController).GetUserQuery,
@@ -107,5 +101,6 @@ func main() {
 				RoutingKey: "stock.created",
 			},
 		},*/
+		HTTP: &boot.HTTPOptions{},
 	})
 }

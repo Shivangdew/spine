@@ -73,6 +73,7 @@ func (a *app) Run(opts boot.Options) error {
 		Kafka:                  opts.Kafka,
 		RabbitMQ:               opts.RabbitMQ,
 		ConsumerRegistry:       a.consumerRegistry,
+		HTTP:                   opts.HTTP,
 	}
 
 	return bootstrap.Run(internalConfig)

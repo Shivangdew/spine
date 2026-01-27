@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,11 +17,8 @@ import (
 	"github.com/NARUBROWN/spine/internal/container"
 	"github.com/NARUBROWN/spine/internal/event/consumer"
 	eventResolver "github.com/NARUBROWN/spine/internal/event/consumer/resolver"
-	"github.com/NARUBROWN/spine/internal/event/extract"
-	"github.com/NARUBROWN/spine/internal/event/hook"
 	"github.com/NARUBROWN/spine/internal/event/infra/kafka"
 	"github.com/NARUBROWN/spine/internal/event/infra/rabbitmq"
-	"github.com/NARUBROWN/spine/internal/event/publish"
 	"github.com/NARUBROWN/spine/internal/handler"
 	"github.com/NARUBROWN/spine/internal/invoker"
 	"github.com/NARUBROWN/spine/internal/pipeline"
@@ -40,6 +38,7 @@ type Config struct {
 	Kafka                  *boot.KafkaOptions
 	RabbitMQ               *boot.RabbitMqOptions
 	ConsumerRegistry       *consumer.Registry
+	HTTP                   *boot.HTTPOptions
 }
 
 func Run(config Config) error {
@@ -48,6 +47,192 @@ func Run(config Config) error {
 	log.Println("[Bootstrap] 컨테이너 초기화 시작")
 	// 컨테이너 생성
 	container := container.New()
+
+	if config.HTTP != nil {
+		prefix := config.HTTP.GlobalPrefix
+		if prefix != "" {
+			if !strings.HasPrefix(prefix, "/") {
+				panic("HTTP GlobalPrefix는 '/'로 시작해야 합니다")
+			}
+			if strings.Contains(prefix, ":") {
+				panic("Path 파라미터는 HTTP GlobalPrefix에서 사용될 수 없습니다")
+			}
+			if strings.Contains(prefix, "*") {
+				panic("와일드카드는 HTTP GlobalPrefix에서 사용될 수 없습니다")
+			}
+			prefix = strings.TrimSuffix(prefix, "/")
+			log.Printf("[Bootstrap] HTTP GlobalPrefix 적용: %s", prefix)
+		}
+
+		log.Printf("[Bootstrap] 생성자 등록 시작 (%d개)", len(config.Constructors))
+		// 생성자 등록
+		for _, constructor := range config.Constructors {
+			log.Printf("[Bootstrap] 생성자 등록 : %T", constructor)
+			if err := container.RegisterConstructor(constructor); err != nil {
+				return err
+			}
+		}
+
+		log.Printf("[Bootstrap] 라우터 구성 시작 (%d개 라우트)", len(config.Routes))
+		// Router 생성 및 라우트 등록
+		router := spineRouter.NewRouter()
+
+		registeredPathsByMethod := make(map[string][]string)
+
+		for _, route := range config.Routes {
+			log.Printf("[Bootstrap] 라우터 등록 : (%s) %s", route.Method, route.Path)
+			meta, err := spineRouter.NewHandlerMeta(route.Handler)
+			if err != nil {
+				return err
+			}
+
+			resolved := make([]core.Interceptor, len(route.Interceptors))
+			for i, interceptor := range route.Interceptors {
+				interceptorType := reflect.TypeOf(interceptor)
+				value := reflect.ValueOf(interceptor)
+
+				if interceptorType.Kind() == reflect.Pointer && value.IsNil() {
+					log.Printf("[Bootstrap] Route Interceptor %s가 컨테이너에서 생성됐습니다.", interceptorType.Elem().Name())
+					inst, err := container.Resolve(interceptorType)
+					if err != nil {
+						panic(err)
+					}
+					resolved[i] = inst.(core.Interceptor)
+				} else {
+					log.Printf("[Bootstrap] Route Interceptor %T가 인스턴스에서 사용됩니다.", interceptor)
+					resolved[i] = interceptor
+				}
+			}
+
+			meta.Interceptors = resolved
+			fullPath := joinPath(prefix, route.Path)
+
+			assertNoAmbiguousRoute(route.Method, fullPath, registeredPathsByMethod[route.Method])
+			registeredPathsByMethod[route.Method] = append(registeredPathsByMethod[route.Method], fullPath)
+
+			router.Register(route.Method, fullPath, meta)
+		}
+
+		log.Println("[Bootstrap] 컨트롤러 의존성 Warm-up 시작")
+		// Warm-Up Component
+		if err := container.WarmUp(router.ControllerTypes()); err != nil {
+			// Warm-up 실패시 panic
+			panic(err)
+		}
+
+		log.Println("[Bootstrap] 실행 파이프라인 구성")
+		httpInvoker := invoker.NewInvoker(container)
+		httpPipeline := pipeline.NewPipeline(router, httpInvoker)
+
+		log.Println("[Bootstrap] ArgumentResolver 등록")
+		httpPipeline.AddArgumentResolver(
+			// 표준 Context 리졸버
+			&resolver.StdContextResolver{},
+
+			// Spine Controller Context View
+			&resolver.ControllerContextResolver{},
+
+			// Header Resolver
+			&resolver.HeaderResolver{},
+
+			// Path 리졸버들
+			&resolver.PathIntResolver{},
+			&resolver.PathStringResolver{},
+			&resolver.PathBooleanResolver{},
+
+			// Query 의미 타입 리졸버들
+			&resolver.PaginationResolver{},
+			&resolver.QueryValuesResolver{},
+
+			// Body 리졸버
+			&resolver.DTOResolver{},
+
+			// Form DTO (multipart / form)
+			&resolver.FormDTOResolver{},
+
+			// Multipart files
+			&resolver.UploadedFilesResolver{},
+		)
+
+		log.Println("[Bootstrap] ReturnValueHandler 등록")
+		httpPipeline.AddReturnValueHandler(
+			&handler.RedirectReturnValueHandler{},
+			&handler.StringReturnHandler{},
+			&handler.JSONReturnHandler{},
+			&handler.ErrorReturnHandler{},
+		)
+
+		log.Println("[Bootstrap] Interceptor 등록 시작")
+
+		uniqueInterceptors := make(map[reflect.Type]core.Interceptor)
+
+		// 전역 인터셉터 수집
+		for _, interceptor := range config.Interceptors {
+			t := reflect.TypeOf(interceptor)
+			uniqueInterceptors[t] = interceptor
+		}
+
+		for _, interceptor := range uniqueInterceptors {
+			v := reflect.ValueOf(interceptor)
+			t := reflect.TypeOf(interceptor)
+
+			if t.Kind() == reflect.Pointer && v.IsNil() {
+				log.Printf("[Bootstrap] Interceptor %s가 컨테이너에서 생성됐습니다.", t.Elem().Name())
+
+				inst, err := container.Resolve(t)
+				if err != nil {
+					panic(err)
+				}
+
+				httpPipeline.AddInterceptor(inst.(core.Interceptor))
+				continue
+			}
+
+			log.Printf("[Bootstrap] Interceptor %T가 인스턴스에서 사용됩니다.", interceptor)
+			httpPipeline.AddInterceptor(interceptor)
+		}
+
+		log.Println("[Bootstrap] HTTP 어댑터 마운트")
+		// Echo Adapter
+		server := httpEngine.NewServer(httpPipeline, config.Address, config.TransportHooks)
+		server.Mount()
+
+		// EnableGracefulShutdown 기본값 : false : 즉시 종료 로직
+		if !config.EnableGracefulShutdown {
+			log.Printf("[Bootstrap] 서버 리스닝 시작: %s", config.Address)
+			return server.Start()
+		}
+
+		go func() {
+			log.Printf("[Bootstrap] 서버 리스닝 시작: %s", config.Address)
+
+			if err := server.Start(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("[Bootstrap] 서버 시작 실패: %v", err)
+			}
+		}()
+
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		<-quit
+
+		log.Println("[Bootstrap] 시스템 종료 감지. Graceful Shutdown 시작...")
+
+		timeout := config.ShutdownTimeout
+		if timeout == 0 {
+			timeout = 10 * time.Second
+		}
+
+		// 컨텍스트 생성...10초까지 봐줄 것
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			return fmt.Errorf("[Bootstrap] 서버 강제 종료 발생: %v", err)
+		}
+
+		log.Println("[Bootstrap] 시스템이 안전하게 종료되었습니다.")
+		return nil
+	}
 
 	log.Printf("[Bootstrap] 생성자 등록 시작 (%d개)", len(config.Constructors))
 	// 생성자 등록
@@ -58,41 +243,9 @@ func Run(config Config) error {
 		}
 	}
 
-	log.Printf("[Bootstrap] 라우터 구성 시작 (%d개 라우트)", len(config.Routes))
-	// Router 생성 및 라우트 등록
-	router := spineRouter.NewRouter()
-	for _, route := range config.Routes {
-		log.Printf("[Bootstrap] 라우터 등록 : (%s) %s", route.Method, route.Path)
-		meta, err := spineRouter.NewHandlerMeta(route.Handler)
-		if err != nil {
-			return err
-		}
-
-		resolved := make([]core.Interceptor, len(route.Interceptors))
-		for i, interceptor := range route.Interceptors {
-			interceptorType := reflect.TypeOf(interceptor)
-			value := reflect.ValueOf(interceptor)
-
-			if interceptorType.Kind() == reflect.Pointer && value.IsNil() {
-				log.Printf("[Bootstrap] Route Interceptor %s가 컨테이너에서 생성됐습니다.", interceptorType.Elem().Name())
-				inst, err := container.Resolve(interceptorType)
-				if err != nil {
-					panic(err)
-				}
-				resolved[i] = inst.(core.Interceptor)
-			} else {
-				log.Printf("[Bootstrap] Route Interceptor %T가 인스턴스에서 사용됩니다.", interceptor)
-				resolved[i] = interceptor
-			}
-		}
-
-		meta.Interceptors = resolved
-		router.Register(route.Method, route.Path, meta)
-	}
-
 	log.Println("[Bootstrap] 컨트롤러 의존성 Warm-up 시작")
 	// Warm-Up Component
-	if err := container.WarmUp(router.ControllerTypes()); err != nil {
+	if err := container.WarmUp(nil); err != nil {
 		// Warm-up 실패시 panic
 		panic(err)
 	}
@@ -106,50 +259,6 @@ func Run(config Config) error {
 			panic(err)
 		}
 	}
-
-	log.Println("[Bootstrap] 실행 파이프라인 구성")
-	httpInvoker := invoker.NewInvoker(container)
-	httpPipeline := pipeline.NewPipeline(router, httpInvoker)
-
-	log.Println("[Bootstrap] ArgumentResolver 등록")
-	httpPipeline.AddArgumentResolver(
-		// 표준 Context 리졸버
-		&resolver.StdContextResolver{},
-
-		// Spine Controller Context View
-		&resolver.ControllerContextResolver{},
-
-		// Header Resolver
-		&resolver.HeaderResolver{},
-
-		// Path 리졸버들
-		&resolver.PathIntResolver{},
-		&resolver.PathStringResolver{},
-		&resolver.PathBooleanResolver{},
-
-		// Query 의미 타입 리졸버들
-		&resolver.PaginationResolver{},
-		&resolver.QueryValuesResolver{},
-
-		// Body 리졸버
-		&resolver.DTOResolver{},
-
-		// Form DTO (multipart / form)
-		&resolver.FormDTOResolver{},
-
-		// Multipart files
-		&resolver.UploadedFilesResolver{},
-	)
-
-	log.Println("[Bootstrap] ReturnValueHandler 등록")
-	httpPipeline.AddReturnValueHandler(
-		&handler.RedirectReturnValueHandler{},
-		&handler.StringReturnHandler{},
-		&handler.JSONReturnHandler{},
-		&handler.ErrorReturnHandler{},
-	)
-
-	log.Println("[Bootstrap] Interceptor 등록 시작")
 
 	// Kafka Write 옵션이 존재하면 Write를 Boot에 포함
 	if config.Kafka != nil && config.Kafka.Write != nil {
@@ -169,19 +278,6 @@ func Run(config Config) error {
 				log.Printf("[Bootstrap] Kafka publisher close 실패: %v", err)
 			}
 		}()
-
-		dispatcher := &publish.DefaultEventDispatcher{
-			Publishers: []publish.EventPublisher{
-				kafkaPublisher,
-			},
-		}
-
-		eventHook := &hook.EventDispatchHook{
-			Extractor:  extract.DefaultEventExtractor{},
-			Dispatcher: dispatcher,
-		}
-
-		httpPipeline.AddPostExecutionHook(eventHook)
 	}
 
 	// RabbitMQ 쓰기 설정이 존재하면, 발행 구성
@@ -202,19 +298,6 @@ func Run(config Config) error {
 				log.Printf("[Bootstrap] RabbitMQ writer close 실패: %v", err)
 			}
 		}()
-
-		dispatcher := &publish.DefaultEventDispatcher{
-			Publishers: []publish.EventPublisher{
-				rabbitmqWriter,
-			},
-		}
-
-		eventHook := &hook.EventDispatchHook{
-			Extractor:  extract.DefaultEventExtractor{},
-			Dispatcher: dispatcher,
-		}
-
-		httpPipeline.AddPostExecutionHook(eventHook)
 	}
 
 	// Kafka Read 옵션이 존재하면 Read를 Boot에 포함
@@ -271,74 +354,78 @@ func Run(config Config) error {
 		defer runtime.Stop()
 	}
 
-	uniqueInterceptors := make(map[reflect.Type]core.Interceptor)
+	return nil
+}
 
-	// 전역 인터셉터 수집
-	for _, interceptor := range config.Interceptors {
-		t := reflect.TypeOf(interceptor)
-		uniqueInterceptors[t] = interceptor
+func joinPath(prefix, path string) string {
+	if path == "" {
+		panic("라우트 Path는 비어있을 수 없습니다")
 	}
 
-	for _, interceptor := range uniqueInterceptors {
-		v := reflect.ValueOf(interceptor)
-		t := reflect.TypeOf(interceptor)
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
 
-		if t.Kind() == reflect.Pointer && v.IsNil() {
-			log.Printf("[Bootstrap] Interceptor %s가 컨테이너에서 생성됐습니다.", t.Elem().Name())
+	if prefix == "" {
+		return path
+	}
 
-			inst, err := container.Resolve(t)
-			if err != nil {
-				panic(err)
-			}
+	return prefix + path
+}
 
-			httpPipeline.AddInterceptor(inst.(core.Interceptor))
+func assertNoAmbiguousRoute(method, newPath string, existing []string) {
+	newSegs := splitPathForValidation(newPath)
+
+	for _, oldPath := range existing {
+		oldSegs := splitPathForValidation(oldPath)
+
+		// 서로 다른 segment length는 절대 겹치지 않음
+		if len(newSegs) != len(oldSegs) {
 			continue
 		}
 
-		log.Printf("[Bootstrap] Interceptor %T가 인스턴스에서 사용됩니다.", interceptor)
-		httpPipeline.AddInterceptor(interceptor)
-	}
+		// 각 segment가 충돌 없이 겹치는지(교집합 존재) 검사
+		overlaps := true
+		for i := 0; i < len(newSegs); i++ {
+			a := newSegs[i]
+			b := oldSegs[i]
 
-	log.Println("[Bootstrap] HTTP 어댑터 마운트")
-	// Echo Adapter
-	server := httpEngine.NewServer(httpPipeline, config.Address, config.TransportHooks)
-	server.Mount()
+			aParam := isPathParam(a)
+			bParam := isPathParam(b)
 
-	// EnableGracefulShutdown 기본값 : false : 즉시 종료 로직
-	if !config.EnableGracefulShutdown {
-		log.Printf("[Bootstrap] 서버 리스닝 시작: %s", config.Address)
-		return server.Start()
-	}
-
-	go func() {
-		log.Printf("[Bootstrap] 서버 리스닝 시작: %s", config.Address)
-
-		if err := server.Start(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("[Bootstrap] 서버 시작 실패: %v", err)
+			// 둘 다 literal인데 값이 다르면 이 위치에서 교집합이 사라짐
+			if !aParam && !bParam && a != b {
+				overlaps = false
+				break
+			}
 		}
-	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+		if overlaps {
+			panic(fmt.Sprintf(
+				"[Router] 모호한 라우트가 감지되었습니다 (부트 타임): method=%s, 신규=%s 가 기존=%s 와 충돌합니다",
+				method, newPath, oldPath,
+			))
+		}
+	}
+}
 
-	log.Println("[Bootstrap] 시스템 종료 감지. Graceful Shutdown 시작...")
-
-	timeout := config.ShutdownTimeout
-	if timeout == 0 {
-		timeout = 10 * time.Second
+func splitPathForValidation(path string) []string {
+	p := strings.TrimSpace(path)
+	if p == "" || p == "/" {
+		return []string{}
 	}
 
-	// 컨텍스트 생성...10초까지 봐줄 것
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("[Bootstrap] 서버 강제 종료 발생: %v", err)
+	p = strings.TrimPrefix(p, "/")
+	p = strings.TrimSuffix(p, "/")
+	if p == "" {
+		return []string{}
 	}
 
-	log.Println("[Bootstrap] 시스템이 안전하게 종료되었습니다.")
-	return nil
+	return strings.Split(p, "/")
+}
+
+func isPathParam(seg string) bool {
+	return strings.HasPrefix(seg, ":")
 }
 
 const spineBanner = `
@@ -352,7 +439,7 @@ ____/ /__  /_/ /  / _  / / /  __/
 
 func printBanner() {
 	fmt.Print(spineBanner)
-	log.Printf("[Bootstrap] Spine version: %s", "v0.3.3")
+	log.Printf("[Bootstrap] Spine version: %s", "v0.3.4")
 }
 
 func buildConsumerPipeline(container *container.Container, registry *consumer.Registry) *pipeline.Pipeline {

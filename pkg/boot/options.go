@@ -1,6 +1,8 @@
 package boot
 
-import "time"
+import (
+	"time"
+)
 
 /*
 애플리케이션 부트스트랩 전반을 제어하는 최상위 옵션입니다.
@@ -27,4 +29,20 @@ type Options struct {
 		   	nil인 경우 RabbitMQ 기반 이벤트 처리는 비활성화됩니다.
 	*/
 	RabbitMQ *RabbitMqOptions
+
+	/*
+		HTTP Runtime 전용 설정입니다.
+		nil인 경우 HTTP 서버는 실행되지 않습니다.
+	*/
+	HTTP *HTTPOptions
+}
+
+/*
+HTTP Runtime 설정입니다.
+HTTP 요청 실행 흐름에만 영향을 줍니다.
+*/
+type HTTPOptions struct {
+	// HTTP API 전역 Prefix (예: "/api/v1")
+	// 빈 값이면 Prefix를 적용하지 않습니다.
+	GlobalPrefix string
 }
